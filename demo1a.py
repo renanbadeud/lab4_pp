@@ -11,22 +11,57 @@ and sends and receives messages. Support SSL and Normal connections
 uses the loop_start and stop functions just like a single client
 Shows number of thread used
 """
+import ctypes
+import string
+import hashlib
+from multiprocessing.sharedctypes import Value
+from os import kill
 import paho.mqtt.client as mqtt
 import time
 import json
 import threading
+import multiprocessing
 import logging
 import random
+import desafios
 #Note haven't included keys,client_id,client andcname as they are added later in the script
 
+cur_tid = -1
+cur_challenge = -1
 clients=[
-{"init_msg":[],"status":"init","vote_list":[],"vote": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1'],"pub_topic":['init_1','init_2','vote_1','vote_2']},
-{"init_msg":[],"status":"init","vote_list":[],"vote": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_2','vote_2'],"pub_topic":['init_2','init_1','vote_2','vote_1']}
+{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1','challenge_1'],"pub_topic":['init_1','init_2','vote_1','vote_2','challenge_1']},#voltar challenge2
+{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_2','vote_2','challenge_2'],"pub_topic":['init_2','init_1','vote_2','vote_1','challenge_1']}
 ]
 nclients=len(clients)
 message="test message"
-
+listaDesafios = [desafios.Challenge(0, 1)]
 out_queue=[] #use simple array to get printed messages in some form of order
+
+def brute(tdata: desafios.Challenge, thread_id, s: multiprocessing.Value, kill_threads: multiprocessing.Value):
+    finish=0
+    resultado=False
+    res = ""
+    while(finish==0 and kill_threads.value == 0):
+
+        res = ''.join(random.choices(string.ascii_lowercase +
+                                string.digits, k = 7))
+        ct=desafios.Challenge(tdata.transactionID,tdata.challenge,seed=str(res))
+        
+        resultado=ct.check_seed(ct.seed)
+
+        if(resultado):
+            break
+            
+       
+    if(resultado):
+      #   vars(ct)["clientID"]=clientID
+        kill_threads.value = 1
+        s.value = res   
+        
+
+
+
+
 def on_log(client, userdata, level, buf):
    print(buf)
 def on_message(client, userdata, message):
@@ -49,30 +84,56 @@ def on_message(client, userdata, message):
    
    elif (message.topic=="vote_1"):
       msg=str(message.payload.decode("utf-8")).split(',')
-      print("recebido no topico vote_1 ",msg)
+      # print("recebido no topico vote_1 ",msg)
       vote=msg[-1]
       if(len(clients[0]["vote_list"])<nclients):
-         clients[0]["vote_list"].append(vote)
-      print('aqui',clients[0]["vote_list"],len(clients[0]["vote_list"]))
-      if(len(clients[0]["vote_list"])==nclients):
-         total=0
-         for element in clients[0]["vote_list"]:
-            total+=int(element)
-         print("listavotos",clients[0]["vote_list"])
-         print(total)
+         clients[0]["vote_list"].append(int(vote))
+      # print('aqui',clients[0]["vote_list"],len(clients[0]["vote_list"]))
+      # if(len(clients[0]["vote_list"])==nclients):
+      #    total=0
+      #    for element in clients[0]["vote_list"]:
+      #       total+=int(element)
+      #    print("listavotos",clients[0]["vote_list"])
+      #    print(total)
    elif (message.topic=="vote_2"):
          msg=str(message.payload.decode("utf-8")).split(',')
-         print("recebido no topico vote_2 ",msg)
+         # print("recebido no topico vote_2 ",msg)
          vote=msg[-1]
          if(len(clients[1]["vote_list"])<nclients):
-            clients[1]["vote_list"].append(vote)
-         print('aqui',clients[1]["vote_list"],len(clients[1]["vote_list"]))
-         if(len(clients[1]["vote_list"])==nclients):
-            total=0
-            for element in clients[1]["vote_list"]:
-               total+=int(element)
-            print("listavotos",clients[1]["vote_list"])
-            print(total)
+            clients[1]["vote_list"].append(int(vote))
+         # print('aqui',clients[1]["vote_list"],len(clients[1]["vote_list"]))
+         # if(len(clients[1]["vote_list"])==nclients):
+         #    total=0
+         #    for element in clients[1]["vote_list"]:
+         #       total+=int(element)
+         #    print("listavotos",clients[1]["vote_list"])
+         #    print(total)
+   elif (message.topic=="challenge_1"):
+      msg=json.loads(message.payload.decode("utf-8"))
+      global cur_tid
+      global cur_challenge
+      if cur_tid == -1:
+         print('received on ppd/challenge ',msg)
+         clients[0]["status"]='running'
+         # challenge=desafios.Challenge(transactionID=msg["transactionID"],challenge=msg["challenge"],clientID=msg["clientID"])
+         # cur_challenge = challenge.challenge
+         # cur_tid = int(msg["transactionID"])
+         # processes = []
+         # manager = multiprocessing.Manager()
+         # s = manager.Value(ctypes.c_wchar_p, 'aaa')
+         # kill_threads = manager.Value('i', 0)
+         # for i in range(10):
+         #    p = multiprocessing.Process(target=brute, args=(challenge,i, s, kill_threads))
+         #    processes.append(p)
+         #    p.start()
+               
+         # for proc in processes:
+         #       proc.join()
+         # ct=desafios.Challenge(cur_tid,challenge.challenge,clientID=challenge.clientID,seed=s.value)
+         # obj = vars(ct).copy()
+         # obj.__delitem__("challenge")
+         # client.publish("ppd/seed",json.dumps(obj), qos=2)
+         # print("Just published ", obj, " to topic ppd/seed")
 
    # elif(message.topic=="test2"):
    #    print("recebido no topico test2")
@@ -151,11 +212,17 @@ def election():
       else: 
          break
    if(count==nclients):
-      for j in range(nclients):
-         print(clients[j]["client_id"] +" " + clients[j]['status'])
-      return 1
+      total=0
+      for element in clients[0]["vote_list"]:
+         total+=element
+      print("listavotos 0",clients[0]["vote_list"])
+      print("listavotos 1",clients[1]["vote_list"])
+      print(total%10)
+      clients[total%10]["leader"]=True
+      return 2
    else:
-      return 0
+      return 1
+
 
 mqtt.Client.connected_flag=False #create flag in class
 no_threads=threading.active_count()
@@ -193,13 +260,14 @@ try:
                print('--',clients[i]['status'])
             i+=1
       elif(estado ==1):
+         estado=election()
          for i in range(nclients):
             client=clients[i]["client"]
             pub_topic=clients[i]["pub_topic"]
-            vote=random.randint(1, 10)
+            vote=random.randint(0, 1)
             msg="client"+ str(i) + ","+ clients[i]["client_id"]+","+str(vote)
             if client.connected_flag:
-               for j in pub_topic[nclients:]:
+               for j in pub_topic[nclients:2*nclients]:
                   # print('! ',j)
                   client.publish(j,msg)
                   print("publish on"+j+' '+msg)
@@ -207,7 +275,16 @@ try:
                # print("publishing client "+ str(i))
                # print(clients[i]['status'])
             i+=1
-      
+      elif(estado ==2):
+         for i in range(nclients):
+            client=clients[i]["client"]
+            pub_topic=clients[i]["pub_topic"]
+            if(clients[i]["leader"]==True):
+               listaDesafios[-1].clientID=clients[i]["client_id"]
+               for j in pub_topic[2*nclients:]:   
+                  client.publish(j, json.dumps(vars((listaDesafios[-1]))))
+                  print("Just published ", json.dumps(vars((listaDesafios[-1]))), " to topic "+ j) 
+                  print(clients[i]["client_id"])
       time.sleep(1)#now print messages
       # print("queue length=",len(out_queue))
       # for x in range(len(out_queue)):
