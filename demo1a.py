@@ -134,8 +134,8 @@ def on_publish(client, userdata, mid):
 def Create_connections():
    for i in range(nclients):
       cname=str(i)
-      t=int(time.time())
-      client_id =cname+str(t) #create unique client_id
+      t=int(time.time()* 1000)
+      client_id =str(t) #create unique client_id
       client = mqtt.Client(client_id)             #create new instance
       clients[i]["client"]=client 
       clients[i]["client_id"]=client_id
