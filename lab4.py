@@ -56,9 +56,9 @@ def on_log(client, userdata, level, buf):
    print(buf)
 
 def on_message(client, userdata, message):
-   # time.sleep(0.5)
-   
-   if(message.topic=="init"):
+   time.sleep(1)
+   if(message.topic=="init" and estado==0):
+      print("client",client._client_id)
       msg=str(message.payload.decode("utf-8")).split(',')
       print("recebido no topico init ",msg)
       cnum=int(msg[0])
@@ -162,6 +162,7 @@ def Create_connections():
          time.sleep(0.05)
 
 def check_init_msg():
+   time.sleep(1)
    count=0
    for i in range(nclients):
       if(clients[i]['status']=='election'):
@@ -174,6 +175,7 @@ def check_init_msg():
       return 0
 
 def election():
+   time.sleep(1)
    count=0
    for i in range(nclients):
       if(len(clients[i]['vote_list'])==nclients):
@@ -181,6 +183,7 @@ def election():
       else: 
          break
    if(count==nclients):
+      time.sleep(0.5)
       print("client 0",clients[0]["vote_list"])
       print("client 1",clients[1]["vote_list"])
       
@@ -224,6 +227,7 @@ estado=0
 try:
    while Run_Flag:
       i=0
+      # print(estado)
       if (estado==0):
          estado=check_init_msg()
          for i in range(nclients):
@@ -232,12 +236,11 @@ try:
             msg=str(i) + ","+clients[i]["client_id"]
             if client.connected_flag:
                   client.publish('init',msg,qos=2)
-                  # time.sleep(1)
+                  time.sleep(0.1)
                # print("client "+ str(i) + "published on topic " + j + "msg: " +msg)
                # print('--',clients[i]['status'])
             i+=1
       elif(estado ==1):
-         print("aqui")
          estado=election()
          for i in range(nclients):
             client=clients[i]["client"]
@@ -245,7 +248,7 @@ try:
             vote=random.randint(0, nclients-1)
             msg=clients[i]["client_id"]+","+str(vote)
             if client.connected_flag:
-                  client.publish('vote',msg)
+                  client.publish('vote',msg,qos=2)
                   # print("publish on "+j+' '+msg)
                   time.sleep(0.1)
                # print("publishing client "+ str(i))
