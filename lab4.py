@@ -23,8 +23,9 @@ cur_challenge = -1
 # {"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1','challenge_1'],"pub_topic":['init_1','init_0','vote_1','vote_0','challenge_0']}
 # ]
 clients=[
-{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','vote','challenge'],"pub_topic":['init','vote','challenge']},#voltar challenge1
-{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','vote','challenge'],"pub_topic":['init','vote','challenge']}
+{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','vote','challenge']},
+{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','vote','challenge']}
+# ,{"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','vote','challenge']}
 ]
 
 nclients=len(clients)
@@ -58,38 +59,38 @@ def on_log(client, userdata, level, buf):
 def on_message(client, userdata, message):
    time.sleep(1)
    if(message.topic=="init" and estado==0):
-      print("client",client._client_id)
+      # print("client",client._client_id)
       msg=str(message.payload.decode("utf-8")).split(',')
-      print("recebido no topico init ",msg)
-      cnum=int(msg[0])
-      cid=msg[1]
+      print("recebido no topico init do client",client._client_id,msg)   
       for i in range (nclients):
-         if cid not in clients[i]["init_msg"]:
-            clients[i]["init_msg"].append(cid)
+         if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
+            break
+      if(msg[-1] not in clients[i]['init_msg']):
+            clients[i]["init_msg"].append(msg[-1])
             print("client ",i," ",clients[i]["init_msg"])
-         if(len(clients[i]["init_msg"])==nclients):
-            clients[i]["status"]='election'
-            print(clients[i]["status"]) 
+      if(len(clients[i]["init_msg"])==nclients):
+         clients[i]["status"]='election'
+         print(clients[i]["status"]) 
    
-   elif (message.topic=="vote"):
+   elif (message.topic=="vote" and estado==1):
       msg=str(message.payload.decode("utf-8")).split(',')
-      print("recebido no topico vote ",msg)
+      print("recebido no topico vote do client",client._client_id,msg)
       vote=msg[-1]
-      for i in range (nclients):
-         if(len(clients[i]["vote_list"])<nclients):
-            clients[i]["vote_list"].append(int(vote))
-            print(i,clients[i]["vote_list"]) 
+      for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
+         if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
+            break
 
-   
-   # elif (message.topic=="vote_1"):
-   #       msg=str(message.payload.decode("utf-8")).split(',')
-   #       print("recebido no topico vote_1 ",msg)
-   #       vote=msg[-1]
-   #       if(len(clients[1]["vote_list"])<nclients):
-   #          clients[1]["vote_list"].append(int(vote))
+      if(len(clients[i]["vote_list"])<nclients):
+         if(vote not in clients[i]['vote_list']):
+            clients[i]["vote_list"].append(int(vote))
+            print("client ",i,"votelist ",clients[i]["vote_list"]) 
          
-   # elif (message.topic=="challenge_0"):
-   #    msg=json.loads(message.payload.decode("utf-8"))
+   elif (message.topic=="challenge" and estado==2):
+      msg=json.loads(message.payload.decode("utf-8"))
+      print("recebido no topico challenge do client",client._client_id,msg)
+      
+      if(client._client_id.decode("utf-8")!=msg['clientID']):#tudo que nao for lider recebe o desafio
+         print('client nao lider',client._client_id.decode("utf-8"))
    #    global cur_tid
    #    global cur_challenge
    #    if cur_tid == -1:
@@ -184,8 +185,8 @@ def election():
          break
    if(count==nclients):
       time.sleep(0.5)
-      print("client 0",clients[0]["vote_list"])
-      print("client 1",clients[1]["vote_list"])
+      # print("client 0",clients[0]["vote_list"])
+      # print("client 1",clients[1]["vote_list"])
       
       test_list=clients[0]["vote_list"]
       res = []
@@ -203,7 +204,7 @@ def election():
                if (idx + int(clients[idx]["client_id"])) > idx_leader :
                      idx_leader = idx
       # print(idx_leader)
-      # print(clients[idx_leader]["client_id"])   
+      print('leader',clients[idx_leader]["client_id"])   
       clients[idx_leader]["leader"]=True
       return 2
    else:
@@ -232,39 +233,37 @@ try:
          estado=check_init_msg()
          for i in range(nclients):
             client=clients[i]["client"]
-            # pub_topic=clients[i]["pub_topic"]
             msg=str(i) + ","+clients[i]["client_id"]
             if client.connected_flag:
-                  client.publish('init',msg,qos=2)
-                  time.sleep(0.1)
-               # print("client "+ str(i) + "published on topic " + j + "msg: " +msg)
+               client.publish('init',msg,qos=2)
+               time.sleep(1)
+               # print(str(i) +" "+ client._client_id.decode("utf-8") + " published on topic init " + "msg: " +msg)
                # print('--',clients[i]['status'])
             i+=1
       elif(estado ==1):
          estado=election()
          for i in range(nclients):
             client=clients[i]["client"]
-            # pub_topic=clients[i]["pub_topic"]
             vote=random.randint(0, nclients-1)
             msg=clients[i]["client_id"]+","+str(vote)
             if client.connected_flag:
-                  client.publish('vote',msg,qos=2)
-                  # print("publish on "+j+' '+msg)
-                  time.sleep(0.1)
+               client.publish('vote',msg,qos=2)
+               # print("publish on "+j+' '+msg)
+               time.sleep(1)
                # print("publishing client "+ str(i))
                # print(clients[i]['status'])
             i+=1
-      # elif(estado ==2):
-      #    for i in range(nclients):
-      #       client=clients[i]["client"]
-      #       pub_topic=clients[i]["pub_topic"]
-      #       if(clients[i]["leader"]==True):#lider dispara desafio
-      #          print("leader",clients[i]["client_id"])
-      #          listaDesafios[-1].clientID=clients[i]["client_id"]
-      #          for j in pub_topic[2*nclients:]:   
-      #             client.publish(j, json.dumps(vars((listaDesafios[-1]))))
-      #             # print("Just published ", json.dumps(vars((listaDesafios[-1]))), " to topic "+ j) 
-      #             # print(clients[i]["client_id"])
+      elif(estado ==2):
+         for i in range(nclients):
+            client=clients[i]["client"]
+            if(clients[i]["leader"]==True):#so lider dispara desafio
+               # print("leader",clients[i]["client_id"])
+               listaDesafios[-1].clientID=clients[i]["client_id"]   
+               client.publish("challenge", json.dumps(vars((listaDesafios[-1]))),qos=2)
+               time.sleep(1)
+               print("client "+str(i) +" "+ client._client_id.decode("utf-8") + " published on topic challenge " + "msg: " +json.dumps(vars((listaDesafios[-1]))))
+                  # print("Just published ", json.dumps(vars((listaDesafios[-1]))), " to topic "+ j) 
+                  # print(clients[i]["client_id"])
       # time.sleep(1)#now print messages
       # print("queue length=",len(out_queue))
       # for x in range(len(out_queue)):
