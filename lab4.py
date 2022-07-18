@@ -23,9 +23,9 @@ cur_challenge = -1
 # {"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1','challenge_1'],"pub_topic":['init_1','init_0','vote_1','vote_0','challenge_0']}
 # ]
 clients=[
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge']},
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge']},
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge']}
+{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','voting']},
+{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','voting']},
+{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','voting']}
 ]
 
 nclients=len(clients)
@@ -87,17 +87,47 @@ def on_message(client, userdata, message):
          
    elif (message.topic=="challenge" and estado==2):
       
-      desafio=json.loads(message.payload.decode("utf-8"))
+      msg=json.loads(message.payload.decode("utf-8"))
       
 
       for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
          if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
             break
       if(clients[i]['running']==False and clients[i]['leader']==False):
-         print("recebido no topico challenge do client",client._client_id,desafio)
+         print("recebido no topico challenge do client",client._client_id,msg)
          clients[i]['running']=True
-         clients[i].update(desafio)
-         print(clients[i]['client_id'])
+         clients[i].update(msg)  
+         challenge=desafios.Challenge(transactionID=msg["transactionID"],challenge=10,clientID=client._client_id.decode("utf-8"))
+         # print(challenge.clientID)
+         cur_challenge = challenge.challenge
+         cur_tid = int(msg["transactionID"])
+         processes = []
+         manager = multiprocessing.Manager()
+         s = manager.Value(ctypes.c_wchar_p, 'aaa')
+         kill_threads = manager.Value('i', 0)
+         for i in range(10):
+               p = multiprocessing.Process(target=brute, args=(challenge,i, s, kill_threads))
+               processes.append(p)
+               p.start()
+            
+         for proc in processes:
+               proc.join()
+         ct=desafios.Challenge(cur_tid,challenge.challenge,clientID=client._client_id.decode("utf-8"),seed=s.value)
+         obj = vars(ct).copy()
+         # print(client._client_id.decode("utf-8")," ",obj)
+         client.publish("voting",json.dumps(obj), qos=2)
+         time.sleep(0.5)
+         print(client._client_id," published ", obj, " to topic voting")
+
+   elif (message.topic=="voting"):
+      dcd_msg = json.loads(message.payload.decode("utf-8"))
+      print("recebido no topico voting do client",client._client_id," ",dcd_msg)
+
+      #  for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
+      #    if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
+      #       break
+         
+         # print(clients[i]['client_id'],clients[i]['running'])
          # print("recebido no topico challenge do client",client._client_id,desafio)
 
       # print("recebido no topico challenge do client",client._client_id,msg)
@@ -227,12 +257,14 @@ def election():
 
 def challenge():
    time.sleep(1)
+   # print(clients[0]['client_id']," ",clients[0]['running'])
+   # print(clients[1]['client_id']," ",clients[1]['running'])
+   # print(clients[2]['client_id']," ",clients[2]['running'])
+
    count=0
    for i in range(nclients):
       if(clients[i]['running']==True):
          count+=1
-      else: 
-         break
    if(count==nclients-1):
       return 3
    else:
@@ -255,7 +287,7 @@ estado=0
 try:
    while Run_Flag:
       i=0
-      print(estado)
+      # print(estado)
       if (estado==0):
          estado=check_init_msg()
          for i in range(nclients):
@@ -291,7 +323,14 @@ try:
                # print("client "+str(i) +" "+ client._client_id.decode("utf-8") + " published on topic challenge " + "msg: " +json.dumps(vars((listaDesafios[-1]))))
                   # print("Just published ", json.dumps(vars((listaDesafios[-1]))), " to topic "+ j) 
                   # print(clients[i]["client_id"])
-            i+=1         
+            i+=1  
+      elif(estado ==3):
+         pass
+         # for i in range(clients):
+         #    client=clients[i]["client"]
+         #    if(clients[i]["running"]==True):
+
+
       # time.sleep(1)#now print messages
       # print("queue length=",len(out_queue))
       # for x in range(len(out_queue)):
