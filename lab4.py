@@ -23,9 +23,9 @@ cur_challenge = -1
 # {"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1','challenge_1'],"pub_topic":['init_1','init_0','vote_1','vote_0','challenge_0']}
 # ]
 clients=[
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','voting']},
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','voting']},
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','voting']}
+{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']},
+{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']},
+{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']}
 ]
 
 nclients=len(clients)
@@ -93,7 +93,7 @@ def on_message(client, userdata, message):
       for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
          if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
             break
-      if(clients[i]['running']==False and clients[i]['leader']==False):
+      if(clients[i]['running']==False):
          print("recebido no topico challenge do client",client._client_id,msg)
          clients[i]['running']=True
          clients[i].update(msg)  
@@ -115,14 +115,31 @@ def on_message(client, userdata, message):
          ct=desafios.Challenge(cur_tid,challenge.challenge,clientID=client._client_id.decode("utf-8"),seed=s.value)
          obj = vars(ct).copy()
          # print(client._client_id.decode("utf-8")," ",obj)
-         client.publish("voting",json.dumps(obj), qos=2)
+         obj.__delitem__("challenge")
+         client.publish("ppd/seed",json.dumps(obj), qos=2)
          time.sleep(0.5)
-         print(client._client_id," published ", obj, " to topic voting")
+         print(client._client_id," published ", obj, " to topic ppd/seed")
 
-   elif (message.topic=="voting"):
+   elif (message.topic=="ppd/seed"):
       dcd_msg = json.loads(message.payload.decode("utf-8"))
-      print("recebido no topico voting do client",client._client_id," ",dcd_msg)
+      print("recebido no topico ppd/seed do client",client._client_id," ",dcd_msg)
+      #dou check seed e marco
+   #    tid = dcd_msg["transactionID"]
+   #    seed = dcd_msg["seed"] 
+   #    # if len(listaDesafios) > int(tid):
+   #    #    if listaDesafios[tid].check_seed(seed):
+   #             # print('vencedor received on ppd/seed',client._client_id," ",message.payload.decode("utf-8"))
+   #    listaDesafios[tid].clientID = dcd_msg["clientID"]
+   #    listaDesafios[tid].seed = seed
+   #    obj = vars(listaDesafios[tid]).copy()
+   #    obj.__delitem__("challenge")
+   #    client.publish("ppd/result", json.dumps(obj),qos=2)
+   #    print(client._client_id," published ", obj, " to topic ppd/result")
+   #    time.sleep(0.5)
 
+   # elif (message.topic=="ppd/result"):
+   #    msg=json.loads(message.payload.decode("utf-8"))
+   #    print('received on ppd/result do client ',client._client_id," ",msg)
       #  for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
       #    if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
       #       break
