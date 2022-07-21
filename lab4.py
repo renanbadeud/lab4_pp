@@ -23,9 +23,9 @@ cur_challenge = -1
 # {"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1','challenge_1'],"pub_topic":['init_1','init_0','vote_1','vote_0','challenge_0']}
 # ]
 clients=[
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']},
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']},
-{"init_msg":[],"status":"init","election_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']}
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']},
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']},
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed','ppd/result']}
 ]
 
 nclients=len(clients)
@@ -85,14 +85,15 @@ def on_message(client, userdata, message):
             clients[i]["election_list"].append(int(vote))
             print("client ",i,"electionlist ",clients[i]["election_list"]) 
          
-   elif (message.topic=="challenge" and estado==2):
+   elif (message.topic=="challenge"):
       
       msg=json.loads(message.payload.decode("utf-8"))
-      
-
+      # print("recebido no topico challenge do client",client._client_id,msg)
       for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
          if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
             break
+      print("client ",i,"msg ",msg)
+      
       if(clients[i]['running']==False):
          print("recebido no topico challenge do client",client._client_id,msg)
          clients[i]['running']=True
@@ -118,28 +119,41 @@ def on_message(client, userdata, message):
          obj.__delitem__("challenge")
          client.publish("ppd/seed",json.dumps(obj), qos=2)
          time.sleep(0.5)
-         print(client._client_id," published ", obj, " to topic ppd/seed")
+         # print(client._client_id," published ", obj, " to topic ppd/seed")
 
    elif (message.topic=="ppd/seed"):
       dcd_msg = json.loads(message.payload.decode("utf-8"))
       print("recebido no topico ppd/seed do client",client._client_id," ",dcd_msg)
-      #dou check seed e marco
-   #    tid = dcd_msg["transactionID"]
-   #    seed = dcd_msg["seed"] 
-   #    # if len(listaDesafios) > int(tid):
-   #    #    if listaDesafios[tid].check_seed(seed):
-   #             # print('vencedor received on ppd/seed',client._client_id," ",message.payload.decode("utf-8"))
-   #    listaDesafios[tid].clientID = dcd_msg["clientID"]
-   #    listaDesafios[tid].seed = seed
-   #    obj = vars(listaDesafios[tid]).copy()
-   #    obj.__delitem__("challenge")
-   #    client.publish("ppd/result", json.dumps(obj),qos=2)
-   #    print(client._client_id," published ", obj, " to topic ppd/result")
-   #    time.sleep(0.5)
-
-   # elif (message.topic=="ppd/result"):
-   #    msg=json.loads(message.payload.decode("utf-8"))
-   #    print('received on ppd/result do client ',client._client_id," ",msg)
+   
+      tid = dcd_msg["transactionID"]
+      seed = dcd_msg["seed"] 
+      
+      if listaDesafios[tid].check_seed(seed):
+         # print("recebido no topico ppd/seed do client",client._client_id," ",dcd_msg)
+         dcd_msg['check_vote']=True
+      else:
+         dcd_msg['check_vote']=False
+      client.publish("ppd/result",json.dumps(dcd_msg), qos=2)
+      time.sleep(0.5)
+      # print(dcd_msg)
+      # for i in range (nclients):
+      #    if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
+      #       break
+      # if(len(clients[i]["voting_list"])<nclients):
+      #    if(dcd_msg not in clients[i]['voting_list']):
+      #       clients[i]["voting_list"].append(dcd_msg)
+      #       print()
+      #       print("client ",client._client_id,"voting_list ",clients[i]["voting_list"]) 
+      #       print()
+      # if(len(clients[i]["voting_list"])>0):
+      #    comp_keys = ['transactionID', 'clientID','check_vote']
+      #    for key in comp_keys:
+      #       if clients[0]["voting_list"][0].get(key) == clients[1]["voting_list"][0].get(key) == clients[1]["voting_list"][0].get(key):
+      #          print(clients[0]["voting_list"][0]['clientID'])
+                     
+   elif (message.topic=="ppd/result"):
+      msg=json.loads(message.payload.decode("utf-8"))
+      print('received on ppd/result do client ',client._client_id," ",msg)
       #  for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
       #    if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
       #       break
@@ -330,7 +344,6 @@ try:
                # print(clients[i]['status'])
             i+=1
       elif(estado ==2):
-         estado=challenge()
          for i in range(nclients):
             client=clients[i]["client"]
             if(clients[i]["leader"]==True):#so lider dispara desafio
@@ -340,7 +353,8 @@ try:
                # print("client "+str(i) +" "+ client._client_id.decode("utf-8") + " published on topic challenge " + "msg: " +json.dumps(vars((listaDesafios[-1]))))
                   # print("Just published ", json.dumps(vars((listaDesafios[-1]))), " to topic "+ j) 
                   # print(clients[i]["client_id"])
-            i+=1  
+            i+=1
+         estado=3       
       elif(estado ==3):
          pass
          # for i in range(clients):
