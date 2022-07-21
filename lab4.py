@@ -83,7 +83,7 @@ def on_message(client, userdata, message):
       if(len(clients[i]["election_list"])<nclients):
          if(vote not in clients[i]['election_list']):
             clients[i]["election_list"].append(int(vote))
-            print("client ",i,"electionlist ",clients[i]["election_list"]) 
+            print("client ",client._client_id,"electionlist ",clients[i]["election_list"]) 
          
    elif (message.topic=="challenge"):
       
@@ -128,12 +128,26 @@ def on_message(client, userdata, message):
       tid = dcd_msg["transactionID"]
       seed = dcd_msg["seed"] 
       
-      if listaDesafios[tid].check_seed(seed):
+      if listaDesafios[tid].check_seed(seed):   
+         for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
+            if(clients[i]['client_id']==dcd_msg['clientID']):   
+               break
+
+         if(len(clients[i]["voting_list"])<nclients):
+            if(client._client_id.decode('utf-8') not in clients[i]['voting_list']):
+               clients[i]["voting_list"].append(client._client_id.decode('utf-8'))
+               print("client ",clients[i]['client_id'],"votinglist ",clients[i]["voting_list"])
+
+
+         #adicionar lista e para no loop principal
+         #bateu 3 vezes ganha
+         # ver se foi solucionado
+         #mesma seed
          # print("recebido no topico ppd/seed do client",client._client_id," ",dcd_msg)
          dcd_msg['check_vote']=True
       else:
          dcd_msg['check_vote']=False
-      client.publish("ppd/result",json.dumps(dcd_msg), qos=2)
+      # client.publish("ppd/result",json.dumps(dcd_msg), qos=2)
       time.sleep(0.5)
       # print(dcd_msg)
       # for i in range (nclients):
@@ -151,9 +165,9 @@ def on_message(client, userdata, message):
       #       if clients[0]["voting_list"][0].get(key) == clients[1]["voting_list"][0].get(key) == clients[1]["voting_list"][0].get(key):
       #          print(clients[0]["voting_list"][0]['clientID'])
                      
-   elif (message.topic=="ppd/result"):
-      msg=json.loads(message.payload.decode("utf-8"))
-      print('received on ppd/result do client ',client._client_id," ",msg)
+   # elif (message.topic=="ppd/result"):
+   #    msg=json.loads(message.payload.decode("utf-8"))
+   #    print('received on ppd/result do client ',client._client_id," ",msg)
       #  for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
       #    if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
       #       break
@@ -301,6 +315,18 @@ def challenge():
    else:
       return 2
 
+def voting():
+   
+   time.sleep(1)
+   print("salve")
+   for i in range(nclients):
+      if(len(clients[i]['voting_list'])==nclients):
+         print('winner',clients[i]['client_id'])
+         return 4
+
+
+
+
 mqtt.Client.connected_flag=False #create flag in class
 no_threads=threading.active_count()
 print("current threads =",no_threads)
@@ -356,7 +382,7 @@ try:
             i+=1
          estado=3       
       elif(estado ==3):
-         pass
+         estado=voting()
          # for i in range(clients):
          #    client=clients[i]["client"]
          #    if(clients[i]["running"]==True):
