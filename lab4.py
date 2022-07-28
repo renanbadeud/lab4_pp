@@ -17,7 +17,7 @@ import desafios
 cur_tid = -1
 cur_challenge = -1
 
-
+winner=False
 # clients=[
 # {"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_0','vote_0','challenge_0'],"pub_topic":['init_0','init_1','vote_0','vote_1','challenge_0']},#voltar challenge1
 # {"init_msg":[],"status":"init","vote_list":[],"leader": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init_1','vote_1','challenge_1'],"pub_topic":['init_1','init_0','vote_1','vote_0','challenge_0']}
@@ -58,6 +58,8 @@ def on_log(client, userdata, level, buf):
 
 def on_message(client, userdata, message):
    time.sleep(1)
+   global winner
+   global estado
    if(message.topic=="init" and estado==0):
       # print("client",client._client_id)
       msg=str(message.payload.decode("utf-8")).split(',')
@@ -92,13 +94,13 @@ def on_message(client, userdata, message):
       for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
          if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
             break
-      print("client ",i,"msg ",msg)
+      # print("client ",i,"msg ",msg)
       
       if(clients[i]['running']==False):
          print("recebido no topico challenge do client",client._client_id,msg)
          clients[i]['running']=True
          clients[i].update(msg)  
-         challenge=desafios.Challenge(transactionID=msg["transactionID"],challenge=10,clientID=client._client_id.decode("utf-8"))
+         challenge=desafios.Challenge(transactionID=msg["transactionID"],challenge=msg['challenge'],clientID=client._client_id.decode("utf-8"))
          # print(challenge.clientID)
          cur_challenge = challenge.challenge
          cur_tid = int(msg["transactionID"])
@@ -119,16 +121,17 @@ def on_message(client, userdata, message):
          obj.__delitem__("challenge")
          client.publish("ppd/seed",json.dumps(obj), qos=2)
          time.sleep(0.5)
-         # print(client._client_id," published ", obj, " to topic ppd/seed")
+         print(client._client_id," published ", obj, " to topic ppd/seed")
 
-   elif (message.topic=="ppd/seed"):
+   elif (message.topic=="ppd/seed"): #and winner==False):
+      
       dcd_msg = json.loads(message.payload.decode("utf-8"))
       print("recebido no topico ppd/seed do client",client._client_id," ",dcd_msg)
    
       tid = dcd_msg["transactionID"]
       seed = dcd_msg["seed"] 
       
-      if listaDesafios[tid].check_seed(seed):   
+      if listaDesafios[tid].clientID == -1 and listaDesafios[tid].check_seed(seed):   
          for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
             if(clients[i]['client_id']==dcd_msg['clientID']):   
                break
@@ -137,8 +140,21 @@ def on_message(client, userdata, message):
             if(client._client_id.decode('utf-8') not in clients[i]['voting_list']):
                clients[i]["voting_list"].append(client._client_id.decode('utf-8'))
                print("client ",clients[i]['client_id'],"votinglist ",clients[i]["voting_list"])
-
-
+         
+         if(len(clients[i]['voting_list'])==nclients and winner==False):
+            listaDesafios[tid].clientID = dcd_msg["clientID"]
+            listaDesafios[tid].seed = seed
+            obj = vars(listaDesafios[tid]).copy()
+            print('----',json.dumps(obj))
+            print('winner',clients[i]['client_id'])
+            ultimo_desafio = listaDesafios[-1]
+            listaDesafios.append(desafios.Challenge(ultimo_desafio.transactionID+1, ultimo_desafio.challenge+1))
+            obj = vars(listaDesafios[-1]).copy()
+            print('appended----',json.dumps(obj))
+            winner=True
+            for i in range(nclients):
+               clients[i]['running']=False
+            estado=2   
          #adicionar lista e para no loop principal
          #bateu 3 vezes ganha
          # ver se foi solucionado
@@ -267,6 +283,7 @@ def check_init_msg():
 
 def election():
    time.sleep(1)
+   print("entrou election")
    count=0
    for i in range(nclients):
       if(len(clients[i]['election_list'])==nclients):
@@ -316,13 +333,18 @@ def challenge():
       return 2
 
 def voting():
-   
    time.sleep(1)
-   print("salve")
+   print("entrou voting")
+   count=0
    for i in range(nclients):
       if(len(clients[i]['voting_list'])==nclients):
-         print('winner',clients[i]['client_id'])
-         return 4
+         count+=1
+      else: 
+         break
+   if(count==nclients):
+      time.sleep(0.5)
+      return 4
+   
 
 
 
@@ -370,24 +392,34 @@ try:
                # print(clients[i]['status'])
             i+=1
       elif(estado ==2):
+         # estado=voting()
          for i in range(nclients):
-            client=clients[i]["client"]
-            if(clients[i]["leader"]==True):#so lider dispara desafio
-               # print("leader",clients[i]["client_id"])  
-               client.publish("challenge", json.dumps(vars((listaDesafios[-1]))),qos=2)
-               time.sleep(1)
+            if(clients[i]["leader"]==True):
+               break
+            i+=1   
+         client=clients[i]["client"]
+         winner=False  
+         client.publish("challenge", json.dumps(vars((listaDesafios[-1]))),qos=2)
+         print("Just published ", json.dumps(vars((listaDesafios[-1]))), "to challenge")
+         time.sleep(1)
+         estado=3
                # print("client "+str(i) +" "+ client._client_id.decode("utf-8") + " published on topic challenge " + "msg: " +json.dumps(vars((listaDesafios[-1]))))
                   # print("Just published ", json.dumps(vars((listaDesafios[-1]))), " to topic "+ j) 
                   # print(clients[i]["client_id"])
-            i+=1
-         estado=3       
+            
+               
       elif(estado ==3):
-         estado=voting()
+         time.sleep(1)
+         
+         # client.publish("challenge", json.dumps(vars((listaDesafios[-1]))),qos=2)
+         # print("Just published ", json.dumps(vars((listaDesafios[-1]))), "to challenge")
+         # estado=5
          # for i in range(clients):
          #    client=clients[i]["client"]
          #    if(clients[i]["running"]==True):
 
-
+      # elif(estado==5):
+      #    print("aquuuuuui")
       # time.sleep(1)#now print messages
       # print("queue length=",len(out_queue))
       # for x in range(len(out_queue)):
