@@ -2,7 +2,7 @@
 
 ## Funcionamento
 
-Inicialmente espera-se que os 10 clientes sejam iniciados e estejam conectados. Em seguida cada cliente manda seu client_id (Timestamp em que foi criado) para 
+Inicialmente espera-se que os 10 clients sejam iniciados e estejam conectados. Em seguida cada cliente manda seu client_id (Timestamp em que foi criado) para 
 os demais a fim de ser identificado. Então é realizada a eleição, onde cada client envia seu voto (número aleatório entre 0 e 9), o lider é o client que recebe 
 o maior número de votos, em caso de empate é utilizado o maior client_id. Por fim o líder envia um challenge para ele e os demais clients, cada client busca a
 seed que soluciona o desafio e assim que a encontra, submete aos demais clients que verificam se ela é válida, se for válida o client que a submeteu vence.
