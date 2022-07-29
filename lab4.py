@@ -24,11 +24,11 @@ clients=[
 {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
 {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
 {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
+{"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
 {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']}
-# {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
-# {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
-# {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']},
-# {"init_msg":[],"status":"init","election_list":[],"voting_list":[],"leader": False,"running": False,"broker":"127.0.0.1","port":1883,"name":"blank","sub_topic":['init','election','challenge','ppd/seed']}
 ]
 
 nclients=len(clients)
@@ -89,17 +89,16 @@ def on_message(client, userdata, message):
             print("client ",client._client_id.decode("utf-8"),"electionlist ",clients[i]["election_list"]) 
          
    elif (message.topic=="challenge"):
-      
       msg=json.loads(message.payload.decode("utf-8"))
-      print("recebido no topico challenge do client",client._client_id,msg)
+      # print("recebido no topico challenge do client",client._client_id,msg)
       for i in range (nclients):#descubro qual elemento da lista clients tem o id e altero ele
          if(client._client_id.decode("utf-8")==clients[i]['client_id']):   
             break
       # print("client ",i,"msg ",msg)
       
       # if(clients[i]['running']==False):
-         # print("recebido no topico challenge do client ",client._client_id.decode('utf-8'),msg)
-      clients[i]['running']=True
+      # print("recebido no topico challenge do client ",client._client_id.decode('utf-8'),msg)
+      # clients[i]['running']=True
       clients[i].update(msg)  
       challenge=desafios.Challenge(transactionID=msg["transactionID"],challenge=msg['challenge'],clientID=client._client_id.decode("utf-8"))
       # print(challenge.clientID)
@@ -109,25 +108,25 @@ def on_message(client, userdata, message):
       manager = multiprocessing.Manager()
       s = manager.Value(ctypes.c_wchar_p, 'aaa')
       kill_threads = manager.Value('i', 0)
-      for i in range(10):
-            p = multiprocessing.Process(target=brute, args=(challenge,i, s, kill_threads))
-            processes.append(p)
-            p.start()
-         
+      for i in range(5):
+         p = multiprocessing.Process(target=brute, args=(challenge,i, s, kill_threads))
+         processes.append(p)
+         p.start()
+
       for proc in processes:
-            proc.join()
+         proc.join()
       ct=desafios.Challenge(cur_tid,challenge.challenge,clientID=client._client_id.decode("utf-8"),seed=s.value)
       obj = vars(ct).copy()
       # print(client._client_id.decode("utf-8")," ",obj)
       obj.__delitem__("challenge")
       client.publish("ppd/seed",json.dumps(obj), qos=2)
-      time.sleep(1)
-      print(client._client_id," published ", obj, " to topic ppd/seed")
+      time.sleep(0.5)
+      # print(client._client_id," published ", obj, " to topic ppd/seed")
 
-   elif (message.topic=="ppd/seed"):
+   elif (message.topic=="ppd/seed" and winner==False):
       
       dcd_msg = json.loads(message.payload.decode("utf-8"))
-      print("recebido no topico ppd/seed do client ",client._client_id.decode('utf-8')," ",dcd_msg)
+      # print("recebido no topico ppd/seed do client ",client._client_id.decode('utf-8')," ",dcd_msg)
    
       tid = dcd_msg["transactionID"]
       seed = dcd_msg["seed"] 
@@ -155,11 +154,11 @@ def on_message(client, userdata, message):
             obj = vars(listaDesafios[-1]).copy()
             # print('appended----',json.dumps(obj))
             winner=True
-            for i in range(nclients):
-               clients[i]['running']=False
+            # for i in range(nclients):
+            #    clients[i]['running']=False
             estado=2 #volto ao estado 2 para publicar desafio   
          
-      time.sleep(0.5)
+      # time.sleep(0.5)
    
 def on_connect(client, userdata, flags, rc):
     if rc==0:
@@ -301,6 +300,7 @@ try:
                # print(clients[i]['status'])
             i+=1
       elif(estado ==2): #submete challenge
+         time.sleep(0.5)
          for i in range(nclients):
             if(clients[i]["leader"]==True):
                break
